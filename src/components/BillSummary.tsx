@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { useBillStore } from '../stores/billStore';
 import { BillService } from '../services/billService';
-import type { ParticipantBalance, SplitCalculation, Expense, MenuItem, UserItemCalculation } from '../types/bill';
+import type { ParticipantBalance, SplitCalculation, Expense, MenuItem } from '../types/bill';
 import { ArrowLeft, Download, Share2 } from 'lucide-react';
 
 interface BillSummaryProps {

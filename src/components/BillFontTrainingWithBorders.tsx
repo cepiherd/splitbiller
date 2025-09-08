@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { OCRService } from '../services/ocrService';
 import OCRBorderOverlay from './OCRBorderOverlay';
+import type { OCRResult as BillOCRResult } from '../types/bill';
 
 interface BorderArea {
   id: string;
@@ -14,7 +15,7 @@ interface BorderArea {
   isSelected: boolean;
 }
 
-interface OCRResult {
+interface LocalOCRResult {
   products: Array<{
     name: string;
     quantity: number;
@@ -33,9 +34,8 @@ export const BillFontTrainingWithBorders: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [ocrResult, setOcrResult] = useState<OCRResult | null>(null);
+  const [ocrResult, setOcrResult] = useState<LocalOCRResult | null>(null);
   const [markedAreas, setMarkedAreas] = useState<BorderArea[]>([]);
-  const [selectedArea, setSelectedArea] = useState<BorderArea | null>(null);
   const [isTrainingMode, setIsTrainingMode] = useState(false);
   const [processingMode, setProcessingMode] = useState<'auto' | 'manual' | 'guided'>('guided');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +48,6 @@ export const BillFontTrainingWithBorders: React.FC = () => {
       setImageUrl(url);
       setOcrResult(null);
       setMarkedAreas([]);
-      setSelectedArea(null);
     }
   };
 
@@ -58,13 +57,29 @@ export const BillFontTrainingWithBorders: React.FC = () => {
     setIsProcessing(true);
     try {
       const ocrService = OCRService.getInstance();
-      const result = await ocrService.processImageWithBillFontTraining(imageFile);
+      const result: BillOCRResult = await ocrService.processImageWithBillFontTraining(imageFile);
       
-      setOcrResult(result);
+      // Convert BillOCRResult to LocalOCRResult
+      const localResult: LocalOCRResult = {
+        products: result.products.map(p => ({
+          name: p.name,
+          quantity: p.quantity,
+          price: p.price,
+          confidence: p.confidence || 0.8,
+          isValidated: p.isValidated || false,
+          isMarked: p.isMarked || false,
+          validationNotes: p.validationNotes
+        })),
+        totalAmount: result.totalAmount || 0,
+        confidence: result.confidence,
+        processingTime: Date.now()
+      };
+      
+      setOcrResult(localResult);
       
       // Auto-generate border areas based on OCR result
       if (processingMode === 'auto' || processingMode === 'guided') {
-        generateBorderAreasFromOCR(result);
+        generateBorderAreasFromOCR(localResult);
       }
     } catch (error) {
       console.error('OCR processing error:', error);
@@ -74,7 +89,7 @@ export const BillFontTrainingWithBorders: React.FC = () => {
     }
   };
 
-  const generateBorderAreasFromOCR = (result: OCRResult) => {
+  const generateBorderAreasFromOCR = (result: LocalOCRResult) => {
     // This is a simplified version - in real implementation, you'd use
     // OCR bounding box data to create precise areas
     const areas: BorderArea[] = [];
@@ -112,7 +127,6 @@ export const BillFontTrainingWithBorders: React.FC = () => {
   };
 
   const handleAreaSelect = (area: BorderArea) => {
-    setSelectedArea(area);
     console.log('Selected area:', area);
   };
 
@@ -143,11 +157,6 @@ export const BillFontTrainingWithBorders: React.FC = () => {
     setMarkedAreas(updatedAreas);
   };
 
-  const handleEditArea = (_area: BorderArea) => {
-    // Enable editing mode for the area
-    setIsTrainingMode(true);
-    setSelectedArea(_area);
-  };
 
   const exportTrainingData = () => {
     const trainingData = {
@@ -361,7 +370,6 @@ export const BillFontTrainingWithBorders: React.FC = () => {
               setImageUrl('');
               setOcrResult(null);
               setMarkedAreas([]);
-              setSelectedArea(null);
             }}
             className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
           >

@@ -913,6 +913,7 @@ export class OCRService {
       
       // Convert training data to OCRResult format
       const ocrResult: OCRResult = {
+        rawText: 'OCR processed text',
         products: result.trainingData.products.map((p: any) => ({
           name: p.name,
           quantity: p.quantity,
@@ -923,7 +924,6 @@ export class OCRService {
         })),
         totalAmount: result.trainingData.products.reduce((sum: number, p: any) => sum + (p.quantity * p.price), 0),
         confidence: result.feedback.accuracy,
-        processingTime: Date.now(),
         textBlocks: [],
         validationSummary: {
           totalProducts: result.trainingData.products.length,

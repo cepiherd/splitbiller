@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { OCRService } from '../services/ocrService';
-import { AdvancedImagePreprocessing } from '../services/advancedImagePreprocessing';
 import type { PreprocessingOptions } from '../services/advancedImagePreprocessing';
 
 interface TrainingResult {
