@@ -94,6 +94,16 @@ export interface Expense {
   subtotal?: number; // Amount before tax
 }
 
+export interface Subsidy {
+  id: string;
+  description: string;
+  amount: number;
+  distributedBy: string; // User ID who distributed the subsidy
+  participants: string[]; // Array of User IDs who receive the subsidy
+  date: Date;
+  billId: string;
+}
+
 export interface Bill {
   id: string;
   title: string;
@@ -101,6 +111,7 @@ export interface Bill {
   totalAmount: number;
   participants: User[];
   expenses: Expense[];
+  subsidies: Subsidy[]; // Array of subsidies
   createdBy: string; // User ID
   createdAt: Date;
   updatedAt: Date;
@@ -112,6 +123,8 @@ export interface BillSummary {
   totalAmount: number;
   participantBalances: ParticipantBalance[];
   expenses: Expense[];
+  subsidies: Subsidy[];
+  totalSubsidyAmount: number;
 }
 
 export interface ParticipantBalance {
@@ -123,6 +136,8 @@ export interface ParticipantBalance {
   subtotal: number; // Amount before tax
   taxAmount: number; // Tax amount for this participant
   totalWithTax: number; // Total amount including tax
+  totalSubsidyReceived: number; // Total subsidy received by this participant
+  finalBalance: number; // Balance after subsidy (balance - totalSubsidyReceived)
 }
 
 export interface SplitCalculation {
@@ -158,6 +173,7 @@ export const BillTypes = {
   SplitCalculation: 'SplitCalculation' as const,
   OCRProduct: 'OCRProduct' as const,
   OCRResult: 'OCRResult' as const,
+  Subsidy: 'Subsidy' as const,
 } as const;
 
 // Default export with all types
@@ -170,6 +186,7 @@ export type BillTypeKeys = keyof typeof BillTypes;
 export type CreateBill = Omit<Bill, 'id' | 'createdAt' | 'updatedAt'>;
 export type CreateUser = Omit<User, 'id'>;
 export type CreateExpense = Omit<Expense, 'id' | 'date'>;
+export type CreateSubsidy = Omit<Subsidy, 'id' | 'date'>;
 
 // Type guards for runtime type checking
 export const isUser = (obj: any): obj is User => {
@@ -191,7 +208,18 @@ export const isBill = (obj: any): obj is Bill => {
     typeof obj.title === 'string' && 
     typeof obj.totalAmount === 'number' &&
     Array.isArray(obj.participants) &&
-    Array.isArray(obj.expenses);
+    Array.isArray(obj.expenses) &&
+    Array.isArray(obj.subsidies);
+};
+
+export const isSubsidy = (obj: any): obj is Subsidy => {
+  return obj && 
+    typeof obj.id === 'string' && 
+    typeof obj.description === 'string' && 
+    typeof obj.amount === 'number' &&
+    typeof obj.distributedBy === 'string' &&
+    Array.isArray(obj.participants) &&
+    typeof obj.billId === 'string';
 };
 
 // Namespace export for better organization
@@ -204,9 +232,11 @@ export namespace BillTypes {
   export type SplitCalculation = import('./bill').SplitCalculation;
   export type OCRProduct = import('./bill').OCRProduct;
   export type OCRResult = import('./bill').OCRResult;
+  export type Subsidy = import('./bill').Subsidy;
   export type CreateBill = import('./bill').CreateBill;
   export type CreateUser = import('./bill').CreateUser;
   export type CreateExpense = import('./bill').CreateExpense;
+  export type CreateSubsidy = import('./bill').CreateSubsidy;
   export type BillTypeKeys = import('./bill').BillTypeKeys;
 }
 

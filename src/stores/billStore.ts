@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Bill, User, Expense } from '../types/bill';
+import type { Bill, User, Expense, Subsidy } from '../types/bill';
 import { BillService } from '../services/billService';
 
 interface BillState {
@@ -25,6 +25,10 @@ interface BillState {
   updateExpense: (expenseId: string, updates: Partial<Expense>) => void;
   deleteExpense: (expenseId: string) => void;
   
+  addSubsidy: (subsidy: Omit<Subsidy, 'id' | 'date'>) => string;
+  updateSubsidy: (subsidyId: string, updates: Partial<Subsidy>) => void;
+  deleteSubsidy: (subsidyId: string) => void;
+  
   // Computed values
   getBillSummary: (billId: string) => any;
   getSettlements: (billId: string) => any;
@@ -46,6 +50,7 @@ export const useBillStore = create<BillState>()(
           id: crypto.randomUUID(),
           createdAt: new Date(),
           updatedAt: new Date(),
+          subsidies: billData.subsidies || [],
         };
         
         set((state) => ({
@@ -182,6 +187,80 @@ export const useBillStore = create<BillState>()(
               ...bill,
               expenses: updatedExpenses,
               totalAmount: BillService.calculateTotalAmount(updatedExpenses),
+              updatedAt: new Date(),
+            };
+          });
+          
+          return {
+            bills: updatedBills,
+            currentBill: state.currentBill
+              ? updatedBills.find((b) => b.id === state.currentBill?.id) || null
+              : null,
+          };
+        });
+      },
+
+      // Subsidy actions
+      addSubsidy: (subsidyData) => {
+        const newSubsidy: Subsidy = {
+          ...subsidyData,
+          id: crypto.randomUUID(),
+          date: new Date(),
+        };
+        
+        set((state) => {
+          const updatedBills = state.bills.map((bill) =>
+            bill.id === newSubsidy.billId
+              ? {
+                  ...bill,
+                  subsidies: [...(bill.subsidies || []), newSubsidy],
+                  updatedAt: new Date(),
+                }
+              : bill
+          );
+          
+          return {
+            bills: updatedBills,
+            currentBill: state.currentBill?.id === newSubsidy.billId
+              ? updatedBills.find((b) => b.id === newSubsidy.billId) || null
+              : state.currentBill,
+          };
+        });
+        
+        return newSubsidy.id;
+      },
+
+      updateSubsidy: (subsidyId, updates) => {
+        set((state) => {
+          const updatedBills = state.bills.map((bill) => {
+            const updatedSubsidies = (bill.subsidies || []).map((subsidy) =>
+              subsidy.id === subsidyId ? { ...subsidy, ...updates } : subsidy
+            );
+            
+            return {
+              ...bill,
+              subsidies: updatedSubsidies,
+              updatedAt: new Date(),
+            };
+          });
+          
+          return {
+            bills: updatedBills,
+            currentBill: state.currentBill
+              ? updatedBills.find((b) => b.id === state.currentBill?.id) || null
+              : null,
+          };
+        });
+      },
+
+      deleteSubsidy: (subsidyId) => {
+        set((state) => {
+          const updatedBills = state.bills.map((bill) => {
+            const updatedSubsidies = (bill.subsidies || []).filter((subsidy) => subsidy.id !== subsidyId);
+            
+            return {
+              ...bill,
+              subsidies: updatedSubsidies,
               updatedAt: new Date(),
             };
           });

@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { useBillStore } from '../stores/billStore';
 import { BillService } from '../services/billService';
-import type { ParticipantBalance, SplitCalculation, Expense, MenuItem } from '../types/bill';
+import type { ParticipantBalance, SplitCalculation, Expense, MenuItem, Subsidy } from '../types/bill';
 import { ArrowLeft, Download, Share2 } from 'lucide-react';
 
 interface BillSummaryProps {
@@ -97,6 +97,74 @@ export const BillSummary: React.FC<BillSummaryProps> = ({ billId, onBack }) => {
         </CardContent>
       </Card>
 
+      {/* Subsidy Information */}
+      {summary.subsidies && summary.subsidies.length > 0 ? (
+        <Card className="bg-white shadow-md border">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl sm:text-2xl text-gray-800">Subsidi Dana</CardTitle>
+            <CardDescription className="text-gray-600">
+              Informasi subsidi yang dibagikan kepada peserta
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center text-lg">
+                <span className="text-gray-600">Total Subsidi:</span>
+                <span className="font-semibold text-green-600">{BillService.formatCurrency(summary.totalSubsidyAmount)}</span>
+              </div>
+              <div className="space-y-3">
+                {summary.subsidies.map((subsidy: Subsidy) => {
+                  const distributedByUser = summary.participantBalances.find((p: ParticipantBalance) => p.userId === subsidy.distributedBy);
+                  const subsidyPerPerson = subsidy.amount / subsidy.participants.length;
+                  
+                  return (
+                    <div key={subsidy.id} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-800 text-sm sm:text-base mb-2">{subsidy.description}</div>
+                          <div className="text-xs sm:text-sm text-gray-600 mb-1">
+                            Dibagikan oleh: {distributedByUser?.userName}
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-600 mb-1">
+                            Dibagi untuk: {subsidy.participants.length} orang
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-600">
+                            Tanggal: {new Date(subsidy.date).toLocaleDateString('id-ID')}
+                          </div>
+                        </div>
+                        <div className="text-right sm:text-left">
+                          <div className="font-bold text-lg sm:text-xl text-green-600">
+                            {BillService.formatCurrency(subsidy.amount)}
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-600">
+                            {BillService.formatCurrency(subsidyPerPerson)}/orang
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="bg-white shadow-md border">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl sm:text-2xl text-gray-800">Subsidi Dana</CardTitle>
+            <CardDescription className="text-gray-600">
+              Belum ada subsidi yang dibagikan
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8 text-gray-500">
+              <p className="text-sm">Tidak ada subsidi dana yang dicatat untuk bill ini.</p>
+              <p className="text-xs mt-2">Gunakan form "Tambah Pengeluaran" untuk menambahkan subsidi.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Participant Balances */}
       <Card className="bg-white shadow-md border">
         <CardHeader className="pb-4">
@@ -123,21 +191,31 @@ export const BillSummary: React.FC<BillSummaryProps> = ({ billId, onBack }) => {
                     {balance.totalWithTax !== undefined && (
                       <div className="font-medium">Total: {BillService.formatCurrency(balance.totalWithTax)}</div>
                     )}
+                    {balance.totalSubsidyReceived !== undefined && balance.totalSubsidyReceived > 0 && (
+                      <div className="text-green-600 font-medium">Subsidi diterima: {BillService.formatCurrency(balance.totalSubsidyReceived)}</div>
+                    )}
                   </div>
                 </div>
-                <div className={`text-lg sm:text-xl font-bold ${
-                  balance.balance > 0 
-                    ? 'text-green-600' 
-                    : balance.balance < 0 
-                    ? 'text-red-600' 
-                    : 'text-gray-600'
-                }`}>
-                  {balance.balance > 0 
-                    ? `+${BillService.formatCurrency(balance.balance)}`
-                    : balance.balance < 0 
-                    ? BillService.formatCurrency(balance.balance)
-                    : 'Lunas'
-                  }
+                <div className="text-right">
+                  <div className={`text-lg sm:text-xl font-bold ${
+                    balance.finalBalance > 0 
+                      ? 'text-green-600' 
+                      : balance.finalBalance < 0 
+                      ? 'text-red-600' 
+                      : 'text-gray-600'
+                  }`}>
+                    {balance.finalBalance > 0 
+                      ? `+${BillService.formatCurrency(balance.finalBalance)}`
+                      : balance.finalBalance < 0 
+                      ? BillService.formatCurrency(balance.finalBalance)
+                      : 'Lunas'
+                    }
+                  </div>
+                  {balance.totalSubsidyReceived !== undefined && balance.totalSubsidyReceived > 0 && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Setelah subsidi
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -151,7 +229,7 @@ export const BillSummary: React.FC<BillSummaryProps> = ({ billId, onBack }) => {
           <CardHeader className="pb-4">
             <CardTitle className="text-xl sm:text-2xl text-gray-800">Pembayaran yang Diperlukan</CardTitle>
             <CardDescription className="text-gray-600">
-              Transaksi yang perlu dilakukan untuk menyelesaikan semua hutang
+              Transaksi yang perlu dilakukan untuk menyelesaikan semua hutang (setelah subsidi)
             </CardDescription>
           </CardHeader>
           <CardContent>

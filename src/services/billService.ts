@@ -1,4 +1,4 @@
-import type { Bill, Expense, BillSummary, ParticipantBalance, SplitCalculation, MenuItem, UserItemCalculation } from '../types/bill';
+import type { Bill, Expense, BillSummary, ParticipantBalance, SplitCalculation, MenuItem, UserItemCalculation, Subsidy } from '../types/bill';
 
 export class BillService {
   /**
@@ -35,6 +35,25 @@ export class BillService {
           return total + sharePerPerson;
         }
       }, 0);
+  }
+
+  /**
+   * Menghitung total subsidi yang diterima oleh user
+   */
+  static calculateTotalSubsidyReceivedByUser(subsidies: Subsidy[], userId: string): number {
+    return subsidies
+      .filter(subsidy => subsidy.participants.includes(userId))
+      .reduce((total, subsidy) => {
+        const subsidyPerPerson = subsidy.amount / subsidy.participants.length;
+        return total + subsidyPerPerson;
+      }, 0);
+  }
+
+  /**
+   * Menghitung total amount dari semua subsidi dalam bill
+   */
+  static calculateTotalSubsidyAmount(subsidies: Subsidy[]): number {
+    return subsidies.reduce((total, subsidy) => total + subsidy.amount, 0);
   }
 
   /**
@@ -103,13 +122,15 @@ export class BillService {
   }
 
   /**
-   * Menghitung balance untuk setiap participant dengan detail pajak
+   * Menghitung balance untuk setiap participant dengan detail pajak dan subsidi
    */
   static calculateParticipantBalances(bill: Bill): ParticipantBalance[] {
     return bill.participants.map(participant => {
       const totalPaid = this.calculateTotalPaidByUser(bill.expenses, participant.id);
       const totalOwed = this.calculateTotalOwedByUser(bill.expenses, participant.id);
+      const totalSubsidyReceived = this.calculateTotalSubsidyReceivedByUser(bill.subsidies || [], participant.id);
       const balance = totalPaid - totalOwed;
+      const finalBalance = balance + totalSubsidyReceived;
 
       // Calculate subtotal and tax for this participant
       let subtotal = 0;
@@ -143,7 +164,9 @@ export class BillService {
         balance,
         subtotal,
         taxAmount,
-        totalWithTax
+        totalWithTax,
+        totalSubsidyReceived,
+        finalBalance
       };
     });
   }
@@ -154,24 +177,27 @@ export class BillService {
   static generateBillSummary(bill: Bill): BillSummary {
     const participantBalances = this.calculateParticipantBalances(bill);
     const totalAmount = this.calculateTotalAmount(bill.expenses);
+    const totalSubsidyAmount = this.calculateTotalSubsidyAmount(bill.subsidies || []);
 
     return {
       billId: bill.id,
       totalAmount,
       participantBalances,
-      expenses: bill.expenses
+      expenses: bill.expenses,
+      subsidies: bill.subsidies || [],
+      totalSubsidyAmount
     };
   }
 
   /**
-   * Menghitung transaksi yang diperlukan untuk menyelesaikan hutang
+   * Menghitung transaksi yang diperlukan untuk menyelesaikan hutang (setelah subsidi)
    */
   static calculateSettlements(participantBalances: ParticipantBalance[]): SplitCalculation[] {
     const settlements: SplitCalculation[] = [];
     const balances = [...participantBalances];
 
-    // Sort berdasarkan balance (yang berhutang paling banyak dulu)
-    balances.sort((a, b) => b.balance - a.balance);
+    // Sort berdasarkan finalBalance (yang berhutang paling banyak dulu, setelah subsidi)
+    balances.sort((a, b) => b.finalBalance - a.finalBalance);
 
     let i = 0; // pointer untuk yang berhutang
     let j = balances.length - 1; // pointer untuk yang harus menerima
@@ -180,11 +206,11 @@ export class BillService {
       const debtor = balances[i];
       const creditor = balances[j];
 
-      if (debtor.balance <= 0 || creditor.balance >= 0) {
+      if (debtor.finalBalance <= 0 || creditor.finalBalance >= 0) {
         break;
       }
 
-      const settlementAmount = Math.min(debtor.balance, Math.abs(creditor.balance));
+      const settlementAmount = Math.min(debtor.finalBalance, Math.abs(creditor.finalBalance));
 
       if (settlementAmount > 0.01) { // Hanya buat settlement jika amount > 1 cent
         settlements.push({
@@ -193,12 +219,12 @@ export class BillService {
           amount: Math.round(settlementAmount * 100) / 100 // Round to 2 decimal places
         });
 
-        debtor.balance -= settlementAmount;
-        creditor.balance += settlementAmount;
+        debtor.finalBalance -= settlementAmount;
+        creditor.finalBalance += settlementAmount;
       }
 
-      if (Math.abs(debtor.balance) < 0.01) i++;
-      if (Math.abs(creditor.balance) < 0.01) j--;
+      if (Math.abs(debtor.finalBalance) < 0.01) i++;
+      if (Math.abs(creditor.finalBalance) < 0.01) j--;
     }
 
     return settlements;

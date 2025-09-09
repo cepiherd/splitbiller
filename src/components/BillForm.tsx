@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { useBillStore } from '../stores/billStore';
+import { SubsidyForm } from './SubsidyForm';
 import type { User } from '../types/bill';
 
 interface BillFormProps {
@@ -14,6 +15,7 @@ export const BillForm: React.FC<BillFormProps> = ({ onBillCreated }) => {
   const [description, setDescription] = useState('');
   const [participantName, setParticipantName] = useState('');
   const [participants, setParticipants] = useState<User[]>([]);
+  const [createdBillId, setCreatedBillId] = useState<string | null>(null);
   
   const { createBill, addUser } = useBillStore();
 
@@ -44,15 +46,13 @@ export const BillForm: React.FC<BillFormProps> = ({ onBillCreated }) => {
       totalAmount: 0,
       participants,
       expenses: [],
+      subsidies: [],
       createdBy: participants[0].id, // First participant as creator
       isActive: true,
     });
 
-    // Reset form
-    setTitle('');
-    setDescription('');
-    setParticipants([]);
-    setParticipantName('');
+    // Set created bill ID to show subsidy form
+    setCreatedBillId(billId);
 
     onBillCreated?.(billId);
   };
@@ -153,6 +153,38 @@ export const BillForm: React.FC<BillFormProps> = ({ onBillCreated }) => {
             🚀 Buat Bill Baru
           </Button>
         </form>
+
+        {/* Subsidy Form - shown after bill is created */}
+        {createdBillId && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <SubsidyForm 
+              billId={createdBillId}
+              participants={participants}
+              onSubsidyAdded={() => {
+                // Optionally show success message or refresh data
+              }}
+            />
+          </div>
+        )}
+
+        {/* Reset Form Button - shown after bill is created */}
+        {createdBillId && (
+          <div className="mt-4">
+            <Button
+              onClick={() => {
+                setTitle('');
+                setDescription('');
+                setParticipants([]);
+                setParticipantName('');
+                setCreatedBillId(null);
+              }}
+              variant="outline"
+              className="w-full py-2 text-sm font-semibold text-gray-600 border-gray-300 hover:bg-gray-50"
+            >
+              Buat Bill Baru Lainnya
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { useBillStore } from '../stores/billStore';
+import { SubsidyForm } from './SubsidyForm';
 import type { User, MenuItem, OCRProduct } from '../types/bill';
 import { Plus, Minus, Trash2, X } from 'lucide-react';
 import { InvoiceUpload } from './InvoiceUpload';
@@ -525,6 +526,17 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             💰 Tambah Pengeluaran
           </Button>
         </form>
+
+        {/* Subsidy Form */}
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <SubsidyForm 
+            billId={billId}
+            participants={participants}
+            onSubsidyAdded={() => {
+              // Optionally show success message or refresh data
+            }}
+          />
+        </div>
 
         {/* Invoice Upload Modal */}
         {showInvoiceUpload && (
