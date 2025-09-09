@@ -47,7 +47,7 @@ describe('BillForm', () => {
     
     expect(screen.getByText('John Doe')).toBeInTheDocument();
     
-    const removeButton = screen.getByRole('button', { name: /hapus/i });
+    const removeButton = screen.getByRole('button', { name: '×' });
     await user.click(removeButton);
     
     expect(screen.queryByText('John Doe')).not.toBeInTheDocument();

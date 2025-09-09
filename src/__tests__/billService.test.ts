@@ -36,6 +36,7 @@ describe('BillService', () => {
     totalAmount: 180000,
     participants: mockUsers,
     expenses: mockExpenses,
+    subsidies: [],
     createdBy: '1',
     createdAt: new Date(),
     updatedAt: new Date(),
