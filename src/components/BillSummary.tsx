@@ -3,8 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { useBillStore } from '../stores/billStore';
 import { BillService } from '../services/billService';
+import { WhatsAppShare } from './WhatsAppShare';
 import type { ParticipantBalance, SplitCalculation, Expense, MenuItem, Subsidy } from '../types/bill';
-import { ArrowLeft, Download, Share2 } from 'lucide-react';
+import { ArrowLeft, Download } from 'lucide-react';
+import { useError } from '../contexts/ErrorContext';
+import { useLoading } from '../contexts/LoadingContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface BillSummaryProps {
   billId: string;
@@ -13,23 +17,32 @@ interface BillSummaryProps {
 
 export const BillSummary: React.FC<BillSummaryProps> = ({ billId, onBack }) => {
   const { getBillSummary, getSettlements, bills } = useBillStore();
+  const { addError } = useError();
+  const { setLoading, isLoading } = useLoading();
   
   const summary = getBillSummary(billId);
   const settlements = getSettlements(billId);
   const currentBill = bills.find(b => b.id === billId);
 
   if (!summary) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex items-center justify-center py-12">
+        <LoadingSpinner size="lg" text="Memuat ringkasan bill..." />
+      </div>
+    );
   }
 
-  const handleDownload = () => {
-    // TODO: Implement download functionality
-    alert('Fitur download akan segera tersedia!');
-  };
-
-  const handleShare = () => {
-    // TODO: Implement share functionality
-    alert('Fitur share akan segera tersedia!');
+  const handleDownload = async () => {
+    setLoading('download-summary', true);
+    try {
+      // Simulate download process
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      addError('Fitur download akan segera tersedia!', 'info');
+    } catch (error) {
+      addError('Gagal mengunduh ringkasan', 'error', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setLoading('download-summary', false);
+    }
   };
 
   return (
@@ -52,19 +65,21 @@ export const BillSummary: React.FC<BillSummaryProps> = ({ billId, onBack }) => {
           <Button
             onClick={handleDownload}
             variant="outline"
-            className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 border-gray-300 hover:bg-gray-50"
+            disabled={isLoading('download-summary')}
+            className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 border-gray-300 hover:bg-gray-50 disabled:opacity-50"
           >
-            <Download className="w-4 h-4" />
-            <span>Download</span>
+            {isLoading('download-summary') ? (
+              <LoadingSpinner size="sm" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            <span>{isLoading('download-summary') ? 'Mengunduh...' : 'Download'}</span>
           </Button>
-          <Button
-            onClick={handleShare}
-            variant="outline"
-            className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 border-gray-300 hover:bg-gray-50"
-          >
-            <Share2 className="w-4 h-4" />
-            <span>Share</span>
-          </Button>
+          <WhatsAppShare 
+            bill={currentBill!}
+            summary={summary}
+            settlements={settlements}
+          />
         </div>
       </div>
 
@@ -165,63 +180,6 @@ export const BillSummary: React.FC<BillSummaryProps> = ({ billId, onBack }) => {
         </Card>
       )}
 
-      {/* Participant Balances */}
-      <Card className="bg-white shadow-md border">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl sm:text-2xl text-gray-800">Balance Peserta</CardTitle>
-          <CardDescription className="text-gray-600">
-            Lihat berapa yang sudah dibayar dan berhutang setiap peserta
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3 sm:space-y-4">
-            {summary.participantBalances.map((balance: ParticipantBalance) => (
-              <div key={balance.userId} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="mb-2 sm:mb-0">
-                  <div className="font-semibold text-gray-800 text-sm sm:text-base">{balance.userName}</div>
-                  <div className="text-xs sm:text-sm text-gray-600 space-y-1">
-                    <div>Dibayar: {BillService.formatCurrency(balance.totalPaid)}</div>
-                    <div>Berhutang: {BillService.formatCurrency(balance.totalOwed)}</div>
-                    {balance.subtotal !== undefined && (
-                      <div>Subtotal: {BillService.formatCurrency(balance.subtotal)}</div>
-                    )}
-                    {balance.taxAmount !== undefined && balance.taxAmount > 0 && (
-                      <div>Pajak: {BillService.formatCurrency(balance.taxAmount)}</div>
-                    )}
-                    {balance.totalWithTax !== undefined && (
-                      <div className="font-medium">Total: {BillService.formatCurrency(balance.totalWithTax)}</div>
-                    )}
-                    {balance.totalSubsidyReceived !== undefined && balance.totalSubsidyReceived > 0 && (
-                      <div className="text-green-600 font-medium">Subsidi diterima: {BillService.formatCurrency(balance.totalSubsidyReceived)}</div>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className={`text-lg sm:text-xl font-bold ${
-                    balance.finalBalance > 0 
-                      ? 'text-green-600' 
-                      : balance.finalBalance < 0 
-                      ? 'text-red-600' 
-                      : 'text-gray-600'
-                  }`}>
-                    {balance.finalBalance > 0 
-                      ? `+${BillService.formatCurrency(balance.finalBalance)}`
-                      : balance.finalBalance < 0 
-                      ? BillService.formatCurrency(balance.finalBalance)
-                      : 'Lunas'
-                    }
-                  </div>
-                  {balance.totalSubsidyReceived !== undefined && balance.totalSubsidyReceived > 0 && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      Setelah subsidi
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Settlements */}
       {settlements.length > 0 && (

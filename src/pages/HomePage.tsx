@@ -6,6 +6,9 @@ import { ExpenseForm } from '../components/ExpenseForm';
 import { BillSummary } from '../components/BillSummary';
 import { useBillStore } from '../stores/billStore';
 import { Plus, Receipt, Users } from 'lucide-react';
+import { useError } from '../contexts/ErrorContext';
+import { useLoading } from '../contexts/LoadingContext';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 type ViewMode = 'create' | 'expense' | 'summary';
 
@@ -13,24 +16,58 @@ export const HomePage: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('create');
   
   const { bills, activeBillId, setActiveBill } = useBillStore();
+  const { addError } = useError();
+  const { isLoading, setLoading } = useLoading();
   
   // Use activeBillId as the selected bill, fallback to first bill if available
   const selectedBillId = activeBillId || (bills.length > 0 ? bills[0].id : null);
 
   // Set active bill on mount if not set but bills exist
   useEffect(() => {
-    if (!activeBillId && bills.length > 0) {
-      setActiveBill(bills[0].id);
-    }
-  }, [activeBillId, bills, setActiveBill]);
+    const initializeApp = async () => {
+      setLoading('stats', true);
+      try {
+        if (!activeBillId && bills.length > 0) {
+          setActiveBill(bills[0].id);
+        }
+        // Simulate loading time
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        addError('Gagal memuat data aplikasi', 'error', error instanceof Error ? error.message : 'Unknown error');
+      } finally {
+        setLoading('stats', false);
+      }
+    };
+
+    initializeApp();
+  }, [activeBillId, bills, setActiveBill, setLoading, addError]);
+
+  // Show loading state on initial load
+  if (isLoading('stats') && bills.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" text="Memuat aplikasi..." />
+      </div>
+    );
+  }
 
   const handleBillCreated = (billId: string) => {
-    setActiveBill(billId);
-    setViewMode('expense');
+    try {
+      setActiveBill(billId);
+      setViewMode('expense');
+      addError('Bill berhasil dibuat!', 'info');
+    } catch (error) {
+      addError('Gagal membuat bill', 'error', error instanceof Error ? error.message : 'Unknown error');
+    }
   };
 
   const handleExpenseAdded = () => {
-    setViewMode('summary');
+    try {
+      setViewMode('summary');
+      addError('Pengeluaran berhasil ditambahkan!', 'info');
+    } catch (error) {
+      addError('Gagal menambahkan pengeluaran', 'error', error instanceof Error ? error.message : 'Unknown error');
+    }
   };
 
   const selectedBill = selectedBillId ? bills.find(b => b.id === selectedBillId) : null;
@@ -40,8 +77,15 @@ export const HomePage: React.FC = () => {
       <div className="container mx-auto px-4 py-4 sm:py-6 lg:py-8">
         {/* Header */}
         <div className="text-center mb-6 sm:mb-8">
+          <div className="flex justify-center items-center mb-4">
+            <img 
+              src="/BagiRata_logo.svg" 
+              alt="Bagi Rata Logo" 
+              className="h-16 w-16 sm:h-20 sm:w-20 lg:h-24 lg:w-24"
+            />
+          </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-800 mb-2">
-            SplitBiller
+            Bagi Rata
           </h1>
           <p className="text-gray-600 text-base sm:text-lg lg:text-xl mb-4">
             Mudah membagi tagihan dengan teman-teman
@@ -60,7 +104,13 @@ export const HomePage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 bg-white p-2 rounded-xl shadow-lg border">
             <Button
               variant={viewMode === 'create' ? 'default' : 'outline'}
-              onClick={() => setViewMode('create')}
+              onClick={() => {
+                try {
+                  setViewMode('create');
+                } catch (error) {
+                  addError('Gagal mengubah mode tampilan', 'error', error instanceof Error ? error.message : 'Unknown error');
+                }
+              }}
               className={`flex items-center justify-center space-x-2 px-6 py-3 text-sm sm:text-base font-semibold rounded-lg transition-all duration-200 ${
                 viewMode === 'create' 
                   ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
@@ -102,37 +152,48 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Bill Selection - Compact Dropdown */}
+        {/* Bill Selection - Simplified & Responsive */}
         {bills.length > 0 && viewMode !== 'create' && (
-          <div className="mb-4">
-            <div className="bg-white shadow-sm border rounded-lg p-4">
-              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <div className="mb-8">
+            <div className="bg-white shadow-sm border rounded-xl p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
                 <div className="flex-1 min-w-0">
-                  <label htmlFor="bill-select" className="block text-sm font-medium text-gray-700 mb-2">
-                    Pilih Bill Aktif
-                  </label>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bill Aktif</span>
+                  </div>
                   <select
-                    id="bill-select"
                     value={selectedBillId || ''}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const billId = e.target.value;
-                      setActiveBill(billId);
+                      try {
+                        setActiveBill(billId);
+                        addError('Bill berhasil dipilih!', 'info');
+                      } catch (error) {
+                        addError('Gagal memilih bill', 'error', error instanceof Error ? error.message : 'Unknown error');
+                      }
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    className="w-full px-0 py-1 text-base font-semibold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer"
                   >
                     <option value="">-- Pilih Bill --</option>
                     {bills.map((bill) => (
                       <option key={bill.id} value={bill.id}>
-                        {bill.title} ({bill.participants.length} peserta, {bill.expenses.length} pengeluaran)
+                        {bill.title}
                       </option>
                     ))}
                   </select>
                 </div>
                 {selectedBill && (
-                  <div className="flex-shrink-0">
-                    <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      Total: Rp {selectedBill.totalAmount.toLocaleString('id-ID')}
-                    </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <span className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full font-medium text-xs whitespace-nowrap border border-blue-200">
+                      👥 {selectedBill.participants.length} peserta
+                    </span>
+                    <span className="bg-green-50 text-green-700 px-3 py-1.5 rounded-full font-medium text-xs whitespace-nowrap border border-green-200">
+                      💰 {selectedBill.expenses.length} pengeluaran
+                    </span>
+                    <span className="bg-gray-100 text-gray-800 px-3 py-1.5 rounded-full font-bold text-xs whitespace-nowrap border border-gray-300">
+                      💵 Rp {selectedBill.totalAmount.toLocaleString('id-ID')}
+                    </span>
                   </div>
                 )}
               </div>
@@ -154,22 +215,50 @@ export const HomePage: React.FC = () => {
             />
           )}
 
+          {viewMode === 'expense' && !selectedBill && (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <LoadingSpinner size="lg" text="Memuat data bill..." />
+                <p className="mt-4 text-gray-600">Mohon tunggu sebentar...</p>
+              </div>
+            </div>
+          )}
+
           {viewMode === 'summary' && selectedBillId && (
             <BillSummary 
               billId={selectedBillId} 
-              onBack={() => setViewMode('expense')}
+              onBack={() => {
+                try {
+                  setViewMode('expense');
+                } catch (error) {
+                  addError('Gagal kembali ke mode pengeluaran', 'error', error instanceof Error ? error.message : 'Unknown error');
+                }
+              }}
             />
+          )}
+
+          {viewMode === 'summary' && !selectedBillId && (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <LoadingSpinner size="lg" text="Memuat ringkasan..." />
+                <p className="mt-4 text-gray-600">Mohon tunggu sebentar...</p>
+              </div>
+            </div>
           )}
         </div>
 
         {/* Quick Stats */}
-        {bills.length > 0 && (
-          <div className="mt-8 sm:mt-12">
-            <Card className="bg-white shadow-md border">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-xl sm:text-2xl text-gray-800">Statistik</CardTitle>
-              </CardHeader>
-              <CardContent>
+        <div className="mt-8 sm:mt-12">
+          <Card className="bg-white shadow-md border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl sm:text-2xl text-gray-800">Statistik</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading('stats') ? (
+                <div className="flex items-center justify-center py-8">
+                  <LoadingSpinner size="lg" text="Memuat statistik..." />
+                </div>
+              ) : bills.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className="text-2xl sm:text-3xl font-bold text-gray-800">
@@ -196,10 +285,15 @@ export const HomePage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">Belum ada data untuk ditampilkan</p>
+                  <p className="text-xs mt-2">Buat bill pertama Anda untuk melihat statistik</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

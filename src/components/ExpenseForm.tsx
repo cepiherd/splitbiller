@@ -7,6 +7,9 @@ import { SubsidyForm } from './SubsidyForm';
 import type { User, MenuItem, OCRProduct } from '../types/bill';
 import { Plus, Minus, Trash2, X } from 'lucide-react';
 import { InvoiceUpload } from './InvoiceUpload';
+import { useError } from '../contexts/ErrorContext';
+import { useLoading } from '../contexts/LoadingContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface ExpenseFormProps {
   billId: string;
@@ -35,17 +38,22 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const [includeTax, setIncludeTax] = useState(true);
   
   const { addExpense } = useBillStore();
+  const { addError } = useError();
+  const { setLoading, isLoading } = useLoading();
 
-  const handleParticipantToggle = (participantId: string) => {
-    setSelectedParticipants(prev => 
-      prev.includes(participantId)
-        ? prev.filter(id => id !== participantId)
-        : [...prev, participantId]
-    );
-  };
 
   const handleAddMenuItem = () => {
-    if (newItemName.trim() && newItemPrice && parseFloat(newItemPrice) > 0) {
+    try {
+      if (!newItemName.trim()) {
+        addError('Nama item tidak boleh kosong', 'warning');
+        return;
+      }
+
+      if (!newItemPrice || parseFloat(newItemPrice) <= 0) {
+        addError('Harga harus lebih dari 0', 'warning');
+        return;
+      }
+
       const newItem: MenuItem = {
         id: Date.now().toString(),
         name: newItemName.trim(),
@@ -69,6 +77,8 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       setNewItemPrice('');
       setNewItemQuantity('1');
       setNewItemNotes('');
+    } catch (error) {
+      addError('Gagal menambahkan item menu', 'error', error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
@@ -140,51 +150,71 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
     setMenuItems(updatedItems);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!description.trim() || !amount || !paidBy || selectedParticipants.length === 0) {
-      alert('Please fill in all required fields');
-      return;
+    setLoading('expense-submit', true);
+    
+    try {
+      if (!description.trim() || !amount || !paidBy) {
+        addError('Mohon isi semua field yang wajib diisi', 'warning');
+        return;
+      }
+
+      const expenseAmount = parseFloat(amount);
+      if (isNaN(expenseAmount) || expenseAmount <= 0) {
+        addError('Mohon masukkan jumlah yang valid', 'warning');
+        return;
+      }
+
+      const subtotal = menuItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const taxAmount = includeTax ? (subtotal * parseFloat(taxRate) / 100) : 0;
+
+      // If there are menu items, use all participants; otherwise use selected participants
+      const finalParticipants = menuItems.length > 0 ? participants.map(p => p.id) : selectedParticipants;
+      
+      if (finalParticipants.length === 0) {
+        addError('Mohon pilih peserta atau tambahkan item menu', 'warning');
+        return;
+      }
+
+      // Simulate async operation
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      addExpense({
+        description: description.trim(),
+        amount: expenseAmount,
+        paidBy,
+        participants: finalParticipants,
+        category: category.trim() || undefined,
+        billId,
+        menuItems: menuItems.length > 0 ? menuItems : undefined,
+        location: location.trim() || undefined,
+        taxRate: includeTax ? parseFloat(taxRate) : undefined,
+        taxAmount: includeTax ? taxAmount : undefined,
+        subtotal: includeTax ? subtotal : undefined,
+      });
+
+      // Reset form
+      setDescription('');
+      setAmount('');
+      setPaidBy('');
+      setSelectedParticipants([]);
+      setCategory('');
+      setLocation('');
+      setMenuItems([]);
+      setNewItemName('');
+      setNewItemPrice('');
+      setNewItemQuantity('1');
+      setNewItemNotes('');
+
+      addError('Pengeluaran berhasil ditambahkan!', 'info');
+      onExpenseAdded?.();
+    } catch (error) {
+      addError('Gagal menambahkan pengeluaran', 'error', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setLoading('expense-submit', false);
     }
-
-    const expenseAmount = parseFloat(amount);
-    if (isNaN(expenseAmount) || expenseAmount <= 0) {
-      alert('Please enter a valid amount');
-      return;
-    }
-
-    const subtotal = menuItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const taxAmount = includeTax ? (subtotal * parseFloat(taxRate) / 100) : 0;
-
-    addExpense({
-      description: description.trim(),
-      amount: expenseAmount,
-      paidBy,
-      participants: selectedParticipants,
-      category: category.trim() || undefined,
-      billId,
-      menuItems: menuItems.length > 0 ? menuItems : undefined,
-      location: location.trim() || undefined,
-      taxRate: includeTax ? parseFloat(taxRate) : undefined,
-      taxAmount: includeTax ? taxAmount : undefined,
-      subtotal: includeTax ? subtotal : undefined,
-    });
-
-    // Reset form
-    setDescription('');
-    setAmount('');
-    setPaidBy('');
-    setSelectedParticipants([]);
-    setCategory('');
-    setLocation('');
-    setMenuItems([]);
-    setNewItemName('');
-    setNewItemPrice('');
-    setNewItemQuantity('1');
-    setNewItemNotes('');
-
-    onExpenseAdded?.();
   };
 
   return (
@@ -479,51 +509,31 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             </select>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm sm:text-base font-medium text-gray-700">Dibagi untuk *</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {participants.map((participant) => {
-                const isSelected = selectedParticipants.includes(participant.id);
-                return (
-                  <label key={participant.id} className={`flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 group ${
-                    isSelected 
-                      ? 'bg-blue-50 border-blue-300 shadow-sm' 
-                      : 'bg-gray-50 border-gray-200 hover:bg-blue-50 hover:border-blue-200'
-                  }`}>
-                    <div className="relative">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleParticipantToggle(participant.id)}
-                        className="sr-only"
-                      />
-                      <div className={`w-5 h-5 border-2 rounded-md transition-all duration-200 flex items-center justify-center ${
-                        isSelected 
-                          ? 'bg-blue-600 border-blue-600 text-white' 
-                          : 'border-gray-300 group-hover:border-blue-400 group-hover:bg-blue-50'
-                      }`}>
-                        {isSelected && (
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                    </div>
-                    <span className={`text-sm sm:text-base font-medium transition-colors ${
-                      isSelected ? 'text-blue-800' : 'text-gray-800 group-hover:text-blue-700'
-                    }`}>{participant.name}</span>
-                  </label>
-                );
-              })}
+          {/* Hidden participant selection - now handled automatically based on menu items */}
+          
+          {menuItems.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium text-blue-800">
+                  Pengeluaran akan dibagi untuk semua peserta berdasarkan item menu yang ditambahkan
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           <Button 
             type="submit" 
             className="w-full py-4 text-base sm:text-lg font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
-            disabled={!description.trim() || !amount || !paidBy || selectedParticipants.length === 0}
+            disabled={!description.trim() || !amount || !paidBy || (menuItems.length === 0 && selectedParticipants.length === 0) || isLoading('expense-submit')}
           >
-            💰 Tambah Pengeluaran
+            {isLoading('expense-submit') ? (
+              <LoadingSpinner size="sm" text="Menyimpan..." className="text-white" />
+            ) : (
+              '💰 Tambah Pengeluaran'
+            )}
           </Button>
         </form>
 

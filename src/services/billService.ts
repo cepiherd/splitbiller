@@ -197,20 +197,23 @@ export class BillService {
     const balances = [...participantBalances];
 
     // Sort berdasarkan finalBalance (yang berhutang paling banyak dulu, setelah subsidi)
-    balances.sort((a, b) => b.finalBalance - a.finalBalance);
+    // Yang berhutang (finalBalance < 0) di awal, yang harus menerima (finalBalance > 0) di akhir
+    balances.sort((a, b) => a.finalBalance - b.finalBalance);
 
-    let i = 0; // pointer untuk yang berhutang
-    let j = balances.length - 1; // pointer untuk yang harus menerima
+    let i = 0; // pointer untuk yang berhutang (finalBalance < 0)
+    let j = balances.length - 1; // pointer untuk yang harus menerima (finalBalance > 0)
 
     while (i < j) {
       const debtor = balances[i];
       const creditor = balances[j];
 
-      if (debtor.finalBalance <= 0 || creditor.finalBalance >= 0) {
+      // Berhenti jika tidak ada yang berhutang atau tidak ada yang harus menerima
+      if (debtor.finalBalance >= 0 || creditor.finalBalance <= 0) {
         break;
       }
 
-      const settlementAmount = Math.min(debtor.finalBalance, Math.abs(creditor.finalBalance));
+      // Hitung jumlah yang harus dibayar (minimum antara hutang dan yang bisa diterima)
+      const settlementAmount = Math.min(Math.abs(debtor.finalBalance), creditor.finalBalance);
 
       if (settlementAmount > 0.01) { // Hanya buat settlement jika amount > 1 cent
         settlements.push({
@@ -219,10 +222,12 @@ export class BillService {
           amount: Math.round(settlementAmount * 100) / 100 // Round to 2 decimal places
         });
 
-        debtor.finalBalance -= settlementAmount;
-        creditor.finalBalance += settlementAmount;
+        // Update balance setelah settlement
+        debtor.finalBalance += settlementAmount; // Menambah (mengurangi hutang)
+        creditor.finalBalance -= settlementAmount; // Mengurangi (mengurangi kelebihan)
       }
 
+      // Pindah ke participant berikutnya jika balance sudah mendekati 0
       if (Math.abs(debtor.finalBalance) < 0.01) i++;
       if (Math.abs(creditor.finalBalance) < 0.01) j--;
     }
